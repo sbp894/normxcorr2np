@@ -11,19 +11,15 @@ from scipy.signal import fftconvolve
 #--------------------------------------------------------------------------
 def ParseInputs(T,A):
     
-    assert type()
-    validateattributes(T,{'logical','numeric'},...
-        {'real','nonsparse','2d','finite'},mfilename,'T',1)
-    validateattributes(A,{'logical','numeric'},...
-        {'real','nonsparse','2d','finite'},mfilename,'A',2)
-    
+    assert isinstance(T, np.ndarray)
+    assert isinstance(A, np.ndarray)
     checkSizesTandA(T,A)
     
     # See geck 342320. If either A or T has a minimum value which is negative, we
     # need to shift the array so all values are positive to ensure numerically
     # robust results for the normalized cross-correlation.
-    A = shiftData(A);
-    T = shiftData(T);
+    A = shiftData(A)
+    T = shiftData(T)
     
     checkIfFlat(T);
     return (T,A)
@@ -40,17 +36,14 @@ def checkSizesTandA(T,A):
 #%% --------------------------------------------------------------------------
 def shiftData(A): 
 
-    B = double(A);
+    B = A.astype('float64')
     
-    is_unsigned = isa(A,'uint8') || isa(A,'uint16') || isa(A,'uint32');
-    if ~is_unsigned
+    is_unsigned = np.in1d(A.dtype, ('uint8','uint16','uint32','uint64'))
+    if not is_unsigned:
+        min_B = np.min(B)
         
-        min_B = min(B(:)); 
-        
-        if min_B < 0
-            B = B - min_B;
-        end    
-    end
+        if min_B < 0:
+            B = B - min_B
     return B
 
 #%% Function  time_conv2
