@@ -7,9 +7,54 @@
 import numpy as np
 from scipy.signal import fftconvolve
 
+#%% function [T, A] = ParseInputs(varargin)
+#--------------------------------------------------------------------------
+def ParseInputs(T,A):
+    
+    assert type()
+    validateattributes(T,{'logical','numeric'},...
+        {'real','nonsparse','2d','finite'},mfilename,'T',1)
+    validateattributes(A,{'logical','numeric'},...
+        {'real','nonsparse','2d','finite'},mfilename,'A',2)
+    
+    checkSizesTandA(T,A)
+    
+    # See geck 342320. If either A or T has a minimum value which is negative, we
+    # need to shift the array so all values are positive to ensure numerically
+    # robust results for the normalized cross-correlation.
+    A = shiftData(A);
+    T = shiftData(T);
+    
+    checkIfFlat(T);
+    return (T,A)
+
+#%%--------------------------------------------------------------------------
+def checkSizesTandA(T,A):
+    if np.prod(T.shape)<2:
+        raise AssertionError('Invalid template as size < 2')
+        
+    if np.any(np.array(T.shape)>np.array(A.shape)):
+        raise AssertionError('Template must not be larger than the image in both dimensions')
+
+
+#%% --------------------------------------------------------------------------
+def shiftData(A): 
+
+    B = double(A);
+    
+    is_unsigned = isa(A,'uint8') || isa(A,'uint16') || isa(A,'uint32');
+    if ~is_unsigned
+        
+        min_B = min(B(:)); 
+        
+        if min_B < 0
+            B = B - min_B;
+        end    
+    end
+    return B
+
 #%% Function  time_conv2
 # -------------------------------------------------------------------------
-#
 
 def time_conv2(obssize, refsize):
 # These numbers were calculated for Matlab 
@@ -39,7 +84,7 @@ def xcorr2_fast(T, A):
     
     return cross_corr
 
-
+#%% NORMXCORR2 Normalized two-dimensional cross-correlation.
 def normxcorr2(template, image):
     """
     Input arrays should be floating point numbers.
@@ -54,6 +99,8 @@ def normxcorr2(template, image):
     same: The output is the same size as image, centered with respect to the ‘full’ output.
     :return: N-D array of same dimensions as image. Size depends on mode parameter.
     """
+    
+    [T, A] = ParseInputs(varargin{:});
     xcorr_TA = xcorr2_fast(T,A)
     
     [m, n] = size(T)
