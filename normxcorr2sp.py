@@ -39,7 +39,8 @@ def checkIfFlat(T):
     if A.std==0:
         raise AssertionError('All elements in the template must not be the same')
 
-#%% --------------------------------------------------------------------------
+#%% function B = shiftData(A)
+
 def shiftData(A): 
 
     B = A.astype('float64')
@@ -63,6 +64,33 @@ def time_conv2(obssize, refsize):
     # convolution time = K*prod(obssize)*prod(refsize)
     time = K*np.prod(obssize)*np.prod(refsize)
     return time
+#%% function time = time_fft2(outsize)
+# -------------------------------
+# Function  time_fft2
+#
+def time_fft2(outsize):
+
+    # time a frequency domain convolution by timing two one-dimensional ffts
+    R = outsize[0]
+    S = outsize[1]
+    
+    # Tr = time_fft(R);
+    # K_fft = Tr/(R*log(R)); 
+    
+    # K_fft was empirically calculated by the 2 commented-out lines above.
+    K_fft = 3.3e-7; 
+    Tr = K_fft*R*np.log(R)
+    
+    if S==R:
+        Ts = Tr
+    else:
+        #    Ts = time_fft(S);  # uncomment to estimate explicitly
+       Ts = K_fft*S*np.log(S)
+    end
+    
+    time = S*Tr + R*Ts;
+    
+    return time 
 
 #%% Function  xcorr2_fast
 
