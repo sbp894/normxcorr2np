@@ -5,7 +5,7 @@
 ########################################################################################
 
 import numpy as np
-from scipy.signal import fftconvolve
+from scipy.signal import fftconvolve,convolve2d
 
 #%% function [T, A] = ParseInputs(varargin)
 #--------------------------------------------------------------------------
@@ -92,6 +92,20 @@ def time_fft2(outsize):
     
     return time 
 
+#%% function xcorr_ab = freqxcorr(a,b,outsize)
+#--------------------------------------------------------------------------
+# Function  freqxcorr
+#
+#
+def freqxcorr(a,b,outsize):
+
+    # calculate correlation in frequency domain
+    Fa = np.fft.fft2(np.rot90(a,1),outsize[0],outsize[1])
+    Fb = np.fft.fft2(b,outsize[0],outsize[1])
+    xcorr_ab = np.fft.ifft2(Fa * Fb,'symmetric')
+
+    return xcorr_ab
+
 #%% Function  xcorr2_fast
 
 def xcorr2_fast(T, A):
@@ -103,9 +117,9 @@ def xcorr2_fast(T, A):
     conv_time = time_conv2(T_size,A_size) # 1 conv2
     fft_time = 3*time_fft2(outsize) # 2 fft2 + 1 ifft2
     
-    if (conv_time < fft_time)
-        cross_corr = conv2(rot90(T,2),A)
-    else
+    if conv_time < fft_time:
+        cross_corr = convolve2d(np.rot90(T,1),A)
+    else:
         cross_corr = freqxcorr(T,A,outsize)
     end
     
