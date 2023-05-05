@@ -86,8 +86,7 @@ def time_fft2(outsize):
     else:
         #    Ts = time_fft(S);  # uncomment to estimate explicitly
        Ts = K_fft*S*np.log(S)
-    end
-    
+        
     time = S*Tr + R*Ts;
     
     return time 
@@ -143,65 +142,62 @@ def local_sum(A,m,n):
     return local_sum_A 
 
 #%% NORMXCORR2 Normalized two-dimensional cross-correlation.
-# def normxcorr2(template, image):
-#     """
-#     Input arrays should be floating point numbers.
-#     :param template: N-D array, of template or filter you are using for cross-correlation.
-#     Must be less or equal dimensions to image.
-#     Length of each dimension must be less than length of image.
-#     :param image: N-D array
-#     :param mode: Options, "full", "valid", "same"
-#     full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs. 
-#     Output size will be image size + 1/2 template size in each dimension.
-#     valid: The output consists only of those elements that do not rely on the zero-padding.
-#     same: The output is the same size as image, centered with respect to the ‘full’ output.
-#     :return: N-D array of same dimensions as image. Size depends on mode parameter.
-#     """
+def normxcorr2(template, image):
+    """
+    Input arrays should be floating point numbers.
+    :param template: N-D array, of template or filter you are using for cross-correlation.
+    Must be less or equal dimensions to image.
+    Length of each dimension must be less than length of image.
+    :param image: N-D array
+    :param mode: Options, "full", "valid", "same"
+    full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs. 
+    Output size will be image size + 1/2 template size in each dimension.
+    valid: The output consists only of those elements that do not rely on the zero-padding.
+    same: The output is the same size as image, centered with respect to the ‘full’ output.
+    :return: N-D array of same dimensions as image. Size depends on mode parameter.
+    """
     
-#     [T, A] = ParseInputs(template, image)
-#     xcorr_TA = xcorr2_fast(T,A)
+    [T, A] = ParseInputs(template, image)
+    xcorr_TA = xcorr2_fast(T,A)
     
-#     (m, n) = T.shape
-#     mn = m*n
+    (m, n) = T.shape
+    mn = m*n
     
-#     local_sum_A = local_sum(A,m,n)
-#     local_sum_A2 = local_sum(A*A,m,n)
+    local_sum_A = local_sum(A,m,n)
+    local_sum_A2 = local_sum(A*A,m,n)
     
-#     # Note: diff_local_sums should be nonnegative, but may have negative
-#     # values due to round off errors. Below, we use max to ensure the
-#     # radicand is nonnegative.
-#     diff_local_sums = ( local_sum_A2 - (local_sum_A.^2)/mn )
-#     denom_A = sqrt( max(diff_local_sums,0) ) 
+    # Note: diff_local_sums should be nonnegative, but may have negative
+    # values due to round off errors. Below, we use max to ensure the
+    # radicand is nonnegative.
+    diff_local_sums = ( local_sum_A2 - (local_sum_A**2)/mn )
+    denom_A = np.sqrt( np.max(diff_local_sums,0) ) 
     
-#     denom_T = sqrt(mn-1)*std(T(:))
-#     denom = denom_T*denom_A
-#     numerator = (xcorr_TA - local_sum_A*sum(T(:))/mn )
+    denom_T = np.sqrt(mn-1)*T.std()
+    denom = denom_T*denom_A
+    numerator = (xcorr_TA - local_sum_A*np.sum(T)/mn )
     
-#     # We know denom_T~=0 from input parsing
-#     # so denom is only zero where denom_A is zero, and in 
-#     # these locations, C is also zero.
-#     if coder.target('MATLAB')
-#         C = zeros(size(numerator))
-#     else
-#         # following is needed as the 'non-symmetric' in ifft2 function
-#         # always gives the complex results (as xcorr_TA is complex)
-#      C = zeros(size(numerator),'like',xcorr_TA)
-#     end
+    # We know denom_T~=0 from input parsing
+    # so denom is only zero where denom_A is zero, and in 
+    # these locations, C is also zero.
+    C = np.zeros(numerator.shape)
     
-#     tol = sqrt( eps( max(abs(denom(:)))) )
-#     i_nonzero = find(denom > tol)
-#     C(i_nonzero) = numerator(i_nonzero) ./ denom(i_nonzero)
     
-#     # Another numerics backstop. If any of the coefficients are outside the
-#     # range [-1 1], the numerics are unstable to small variance in A or T. In
-#     # these cases, set C to zero to reflect undefined 0/0 condition.
-#     C( ( abs(C) - 1 ) > sqrt(eps(1)) ) = 0
-#     if ~coder.target('MATLAB')
-#         C = real(C)
-#     end
+    tol = np.sqrt( np.eps( np.max(np.abs(denom))) )
+    i_nonzero = np.find(denom > tol)
+    C[i_nonzero]= numerator[i_nonzero] / denom[i_nonzero]
+    
+    # Another numerics backstop. If any of the coefficients are outside the
+    # range [-1 1], the numerics are unstable to small variance in A or T. In
+    # these cases, set C to zero to reflect undefined 0/0 condition.
+    C[( np.abs(C) - 1 ) > np.sqrt(np.eps(1))] = 0
+    C = np.real(C)
+    
     
 #%%  Debugging 
-A = np.arange(20).reshape((4,5)) + 1
-m = 2
-n = 4 
+A = np.arange(20).reshape((4,5)) - 4
+T = np.arange(8).reshape((2,4)) - 4
+m,n = T.shape
 local_sum_A = local_sum(A,m,n)
+local_sum_A2 = local_sum(A*A,m,n)
+
+[T, A] = ParseInputs(T, A)

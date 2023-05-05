@@ -1,8 +1,7 @@
 
-% [T, A] = ParseInputs(varargin{:});
-A = reshape((1:20)', 5,4)';
-T = reshape((1:8)', 4,2)';
-
+A = reshape((1:20)', 5,4)' - 1 -4;
+T = reshape((1:8)', 4,2)' -1 - 4;
+[T, A] = ParseInputs(T,A);
 
 xcorr_TA = xcorr2_fast(T,A);
 
