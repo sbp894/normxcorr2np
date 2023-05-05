@@ -24,7 +24,8 @@ def ParseInputs(T,A):
     checkIfFlat(T);
     return (T,A)
 
-#%%--------------------------------------------------------------------------
+#%% function checkSizesTandA(T,A)
+
 def checkSizesTandA(T,A):
     if np.prod(T.shape)<2:
         raise AssertionError('Invalid template as size < 2')
@@ -32,6 +33,11 @@ def checkSizesTandA(T,A):
     if np.any(np.array(T.shape)>np.array(A.shape)):
         raise AssertionError('Template must not be larger than the image in both dimensions')
 
+#%% function checkIfFlat(T)
+
+def checkIfFlat(T):
+    if A.std==0:
+        raise AssertionError('All elements in the template must not be the same')
 
 #%% --------------------------------------------------------------------------
 def shiftData(A): 
