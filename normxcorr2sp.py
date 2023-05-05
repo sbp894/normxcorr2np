@@ -121,64 +121,87 @@ def xcorr2_fast(T, A):
         cross_corr = convolve2d(np.rot90(T,1),A)
     else:
         cross_corr = freqxcorr(T,A,outsize)
-    end
-    
+        
     return cross_corr
 
+#%% function local_sum_A = local_sum(A,m,n)
+#--------------------------------------------------------------------------
+# Function  local_sum
+#
+
+# We thank Eli Horn for providing this code, used with his permission,
+# to speed up the calculation of local sums. The algorithm depends on
+# precomputing running sums as described in "Fast Normalized
+# Cross-Correlation", by J. P. Lewis, Industrial Light & Magic.
+
+def local_sum(A,m,n):
+    B = np.pad(A,((m,m,),(n,n,)))
+    s = np.cumsum(B,0)
+    c = s[m:-1,:] - s[0:-m-1,:]
+    s = np.cumsum(c,1)
+    local_sum_A = s[:,n:-1]-s[:,0:-n-1]
+    return local_sum_A 
+
 #%% NORMXCORR2 Normalized two-dimensional cross-correlation.
-def normxcorr2(template, image):
-    """
-    Input arrays should be floating point numbers.
-    :param template: N-D array, of template or filter you are using for cross-correlation.
-    Must be less or equal dimensions to image.
-    Length of each dimension must be less than length of image.
-    :param image: N-D array
-    :param mode: Options, "full", "valid", "same"
-    full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs. 
-    Output size will be image size + 1/2 template size in each dimension.
-    valid: The output consists only of those elements that do not rely on the zero-padding.
-    same: The output is the same size as image, centered with respect to the ‘full’ output.
-    :return: N-D array of same dimensions as image. Size depends on mode parameter.
-    """
+# def normxcorr2(template, image):
+#     """
+#     Input arrays should be floating point numbers.
+#     :param template: N-D array, of template or filter you are using for cross-correlation.
+#     Must be less or equal dimensions to image.
+#     Length of each dimension must be less than length of image.
+#     :param image: N-D array
+#     :param mode: Options, "full", "valid", "same"
+#     full (Default): The output of fftconvolve is the full discrete linear convolution of the inputs. 
+#     Output size will be image size + 1/2 template size in each dimension.
+#     valid: The output consists only of those elements that do not rely on the zero-padding.
+#     same: The output is the same size as image, centered with respect to the ‘full’ output.
+#     :return: N-D array of same dimensions as image. Size depends on mode parameter.
+#     """
     
-    [T, A] = ParseInputs(varargin{:});
-    xcorr_TA = xcorr2_fast(T,A)
+#     [T, A] = ParseInputs(template, image)
+#     xcorr_TA = xcorr2_fast(T,A)
     
-    [m, n] = size(T)
-    mn = m*n
+#     (m, n) = T.shape
+#     mn = m*n
     
-    local_sum_A = local_sum(A,m,n)
-    local_sum_A2 = local_sum(A.*A,m,n)
+#     local_sum_A = local_sum(A,m,n)
+#     local_sum_A2 = local_sum(A*A,m,n)
     
-    # Note: diff_local_sums should be nonnegative, but may have negative
-    # values due to round off errors. Below, we use max to ensure the
-    # radicand is nonnegative.
-    diff_local_sums = ( local_sum_A2 - (local_sum_A.^2)/mn )
-    denom_A = sqrt( max(diff_local_sums,0) ) 
+#     # Note: diff_local_sums should be nonnegative, but may have negative
+#     # values due to round off errors. Below, we use max to ensure the
+#     # radicand is nonnegative.
+#     diff_local_sums = ( local_sum_A2 - (local_sum_A.^2)/mn )
+#     denom_A = sqrt( max(diff_local_sums,0) ) 
     
-    denom_T = sqrt(mn-1)*std(T(:))
-    denom = denom_T*denom_A
-    numerator = (xcorr_TA - local_sum_A*sum(T(:))/mn )
+#     denom_T = sqrt(mn-1)*std(T(:))
+#     denom = denom_T*denom_A
+#     numerator = (xcorr_TA - local_sum_A*sum(T(:))/mn )
     
-    # We know denom_T~=0 from input parsing
-    # so denom is only zero where denom_A is zero, and in 
-    # these locations, C is also zero.
-    if coder.target('MATLAB')
-        C = zeros(size(numerator))
-    else
-        # following is needed as the 'non-symmetric' in ifft2 function
-        # always gives the complex results (as xcorr_TA is complex)
-     C = zeros(size(numerator),'like',xcorr_TA)
-    end
+#     # We know denom_T~=0 from input parsing
+#     # so denom is only zero where denom_A is zero, and in 
+#     # these locations, C is also zero.
+#     if coder.target('MATLAB')
+#         C = zeros(size(numerator))
+#     else
+#         # following is needed as the 'non-symmetric' in ifft2 function
+#         # always gives the complex results (as xcorr_TA is complex)
+#      C = zeros(size(numerator),'like',xcorr_TA)
+#     end
     
-    tol = sqrt( eps( max(abs(denom(:)))) )
-    i_nonzero = find(denom > tol)
-    C(i_nonzero) = numerator(i_nonzero) ./ denom(i_nonzero)
+#     tol = sqrt( eps( max(abs(denom(:)))) )
+#     i_nonzero = find(denom > tol)
+#     C(i_nonzero) = numerator(i_nonzero) ./ denom(i_nonzero)
     
-    # Another numerics backstop. If any of the coefficients are outside the
-    # range [-1 1], the numerics are unstable to small variance in A or T. In
-    # these cases, set C to zero to reflect undefined 0/0 condition.
-    C( ( abs(C) - 1 ) > sqrt(eps(1)) ) = 0
-    if ~coder.target('MATLAB')
-        C = real(C)
-    end
+#     # Another numerics backstop. If any of the coefficients are outside the
+#     # range [-1 1], the numerics are unstable to small variance in A or T. In
+#     # these cases, set C to zero to reflect undefined 0/0 condition.
+#     C( ( abs(C) - 1 ) > sqrt(eps(1)) ) = 0
+#     if ~coder.target('MATLAB')
+#         C = real(C)
+#     end
+    
+#%%  Debugging 
+A = np.arange(20).reshape((4,5)) + 1
+m = 2
+n = 4 
+local_sum_A = local_sum(A,m,n)
