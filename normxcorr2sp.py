@@ -5,7 +5,7 @@
 ########################################################################################
 
 import numpy as np
-from scipy.signal import fftconvolve,convolve2d
+from scipy.signal import convolve2d
 
 #%% function [T, A] = ParseInputs(varargin)
 #--------------------------------------------------------------------------
@@ -170,9 +170,9 @@ def normxcorr2(template, image):
     # values due to round off errors. Below, we use max to ensure the
     # radicand is nonnegative.
     diff_local_sums = ( local_sum_A2 - (local_sum_A**2)/mn )
-    denom_A = np.sqrt( np.max(diff_local_sums,0) ) 
+    denom_A = np.sqrt( np.clip(diff_local_sums,a_min=0,a_max=np.inf)) 
     
-    denom_T = np.sqrt(mn-1)*T.std()
+    denom_T = np.sqrt(mn-1)*T.std(ddof=1)
     denom = denom_T*denom_A
     numerator = (xcorr_TA - local_sum_A*np.sum(T)/mn )
     
@@ -182,23 +182,37 @@ def normxcorr2(template, image):
     C = np.zeros(numerator.shape)
     
     
-    tol = np.sqrt( np.eps( np.max(np.abs(denom))) )
+    tol = np.sqrt( np.spacing( np.max(np.abs(denom))) )
     i_nonzero = np.find(denom > tol)
     C[i_nonzero]= numerator[i_nonzero] / denom[i_nonzero]
     
     # Another numerics backstop. If any of the coefficients are outside the
     # range [-1 1], the numerics are unstable to small variance in A or T. In
     # these cases, set C to zero to reflect undefined 0/0 condition.
-    C[( np.abs(C) - 1 ) > np.sqrt(np.eps(1))] = 0
+    C[( np.abs(C) - 1 ) > np.sqrt(np.spacing(1))] = 0
     C = np.real(C)
     
     
-#%%  Debugging 
-A = np.arange(20).reshape((4,5)) - 4
-T = np.arange(8).reshape((2,4)) - 4
-m,n = T.shape
-local_sum_A = local_sum(A,m,n)
-local_sum_A2 = local_sum(A*A,m,n)
-
-[T, A] = ParseInputs(T, A)
-xcorr_TA = xcorr2_fast(T,A)
+#%%  Verify 
+do_verify = False 
+if do_verify :
+    A = np.arange(20).reshape((4,5)) - 4
+    T = np.arange(8).reshape((2,4)) - 4
+    [T, A] = ParseInputs(T, A)
+    xcorr_TA = xcorr2_fast(T,A)
+    m,n = T.shape
+    mn = m*n
+    local_sum_A = local_sum(A,m,n)
+    local_sum_A2 = local_sum(A*A,m,n)
+    diff_local_sums = ( local_sum_A2 - (local_sum_A**2)/mn )
+    denom_A = np.sqrt( np.clip(diff_local_sums,a_min=0,a_max=np.inf)) 
+    denom_T = np.sqrt(mn-1)*T.std(ddof=1)
+    denom = denom_T*denom_A
+    numerator = (xcorr_TA - local_sum_A*np.sum(T)/mn )
+    
+    C = np.zeros(numerator.shape)
+    tol = np.sqrt( np.spacing( np.max(np.abs(denom))) )
+    i_nonzero = np.where(denom > tol)
+    C[i_nonzero]= numerator[i_nonzero] / denom[i_nonzero]
+    C[( np.abs(C) - 1 ) > np.sqrt(np.spacing(1))] = 0
+    C = np.real(C)
