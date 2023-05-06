@@ -194,6 +194,12 @@ def normxcorr2(template, image):
     return C
     
 #%%  Verify 
+def normxcorr2valid(template, image):
+    ccf_out= normxcorr2(template, image)
+    ccf_out= ccf_out[template.shape[0]-1:(image.shape[0]), template.shape[1]-1:(image.shape[1])]
+    return ccf_out
+
+#%%  Verify 
 do_verify = False 
 if do_verify :
     A = np.arange(20).reshape((4,5)) - 4
@@ -216,3 +222,12 @@ if do_verify :
     C[i_nonzero]= numerator[i_nonzero] / denom[i_nonzero]
     C[( np.abs(C) - 1 ) > np.sqrt(np.spacing(1))] = 0
     C = np.real(C)
+    
+do_verify_valid = True
+if do_verify_valid:
+    A = np.arange(40).reshape((4,10)) - 4
+    T = np.array([[16,2,3,13], [5,11,10,8], [9,7,6,12], [4,14,15,1]])
+    C = normxcorr2(T, A)
+    Cvalid= normxcorr2valid(T, A)
+    
+    

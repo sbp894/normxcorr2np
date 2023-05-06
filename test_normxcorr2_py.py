@@ -84,4 +84,4 @@ plt.ylabel('Count')
 plt.title('error histogram')
 
 plt.tight_layout()
-plt.savefig('comaprison_fig.png',dpi=300)
+# plt.savefig('comaprison_fig.png',dpi=300)
