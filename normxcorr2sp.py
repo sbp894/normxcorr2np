@@ -99,9 +99,9 @@ def time_fft2(outsize):
 def freqxcorr(a,b,outsize):
 
     # calculate correlation in frequency domain
-    Fa = np.fft.fft2(np.rot90(a,1),outsize[0],outsize[1])
-    Fb = np.fft.fft2(b,outsize[0],outsize[1])
-    xcorr_ab = np.fft.ifft2(Fa * Fb,'symmetric')
+    Fa = np.fft.fft2(np.rot90(a,2),outsize)
+    Fb = np.fft.fft2(b,outsize)
+    xcorr_ab = np.fft.ifft2(Fa * Fb)
 
     return xcorr_ab
 
@@ -117,7 +117,7 @@ def xcorr2_fast(T, A):
     fft_time = 3*time_fft2(outsize) # 2 fft2 + 1 ifft2
     
     if conv_time < fft_time:
-        cross_corr = convolve2d(np.rot90(T,1),A)
+        cross_corr = convolve2d(np.rot90(T,2),A)
     else:
         cross_corr = freqxcorr(T,A,outsize)
         
@@ -201,3 +201,4 @@ local_sum_A = local_sum(A,m,n)
 local_sum_A2 = local_sum(A*A,m,n)
 
 [T, A] = ParseInputs(T, A)
+xcorr_TA = xcorr2_fast(T,A)
