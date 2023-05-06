@@ -36,7 +36,7 @@ def checkSizesTandA(T,A):
 #%% function checkIfFlat(T)
 
 def checkIfFlat(T):
-    if A.std==0:
+    if T.std==0:
         raise AssertionError('All elements in the template must not be the same')
 
 #%% function B = shiftData(A)
@@ -181,9 +181,8 @@ def normxcorr2(template, image):
     # these locations, C is also zero.
     C = np.zeros(numerator.shape)
     
-    
     tol = np.sqrt( np.spacing( np.max(np.abs(denom))) )
-    i_nonzero = np.find(denom > tol)
+    i_nonzero = np.where(denom > tol)
     C[i_nonzero]= numerator[i_nonzero] / denom[i_nonzero]
     
     # Another numerics backstop. If any of the coefficients are outside the
@@ -192,6 +191,7 @@ def normxcorr2(template, image):
     C[( np.abs(C) - 1 ) > np.sqrt(np.spacing(1))] = 0
     C = np.real(C)
     
+    return C
     
 #%%  Verify 
 do_verify = False 
