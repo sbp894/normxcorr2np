@@ -197,7 +197,8 @@ def normxcorr2(template, image):
 def normxcorr2valid(template, image):
     ccf_out= normxcorr2(template, image)
     ccf_out= ccf_out[template.shape[0]-1:(image.shape[0]), template.shape[1]-1:(image.shape[1])]
-    return ccf_out
+    max_ccf = ccf_out.max()
+    return max_ccf
 
 #%%  Verify 
 do_verify = False 
