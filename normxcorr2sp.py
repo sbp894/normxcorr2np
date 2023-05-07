@@ -194,7 +194,7 @@ def normxcorr2(template, image):
     return C
     
 #%%  Verify 
-def normxcorr2valid(template, image):
+def normxcorr2max(template, image):
     ccf_out= normxcorr2(template, image)
     ccf_out= ccf_out[template.shape[0]-1:(image.shape[0]), template.shape[1]-1:(image.shape[1])]
     max_ccf = ccf_out.max()
@@ -229,6 +229,6 @@ if do_verify_valid:
     A = np.arange(40).reshape((4,10)) - 4
     T = np.array([[16,2,3,13], [5,11,10,8], [9,7,6,12], [4,14,15,1]])
     C = normxcorr2(T, A)
-    Cvalid= normxcorr2valid(T, A)
+    Cvalid= normxcorr2max(T, A)
     
     
