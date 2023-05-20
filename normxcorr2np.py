@@ -45,7 +45,7 @@ def shiftData(A):
 
     B = A.astype('float64')
     
-    is_unsigned = np.in1d(A.dtype, ('uint8','uint16','uint32','uint64'))
+    is_unsigned = A.dtype in ('uint8','uint16','uint32','uint64')
     if not is_unsigned:
         min_B = np.min(B)
         
