@@ -254,7 +254,7 @@ def normxcorr2max(template, image):
     size_slice= [image.shape[0] - (template.shape[0]-1), image.shape[1] - (template.shape[1]-1)]
     ccf_out= tf.slice(ccf_out, begin=begin_slice, size=size_slice)
     max_ccf = tf.reduce_max(ccf_out)
-    return max_ccf
+    return max_ccf,ccf_out
 
 #%% np_spacing
 def np_spacing(x):
