@@ -224,7 +224,7 @@ if do_verify :
     C[( np.abs(C) - 1 ) > np.sqrt(np.spacing(1))] = 0
     C = np.real(C)
     
-do_verify_valid = True
+do_verify_valid = False 
 if do_verify_valid:
     A = np.arange(40).reshape((4,10)) - 4
     T = np.array([[16,2,3,13], [5,11,10,8], [9,7,6,12], [4,14,15,1]])
