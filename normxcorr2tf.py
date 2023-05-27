@@ -6,7 +6,8 @@
 
 import numpy as np
 import tensorflow as tf 
-is_debugging= True
+is_debugging= False
+do_parse_checks= False # to avoid graph execution errors, will add these later 
 
 #%% function [T, A] = ParseInputs(varargin)
 #--------------------------------------------------------------------------
@@ -14,7 +15,8 @@ def ParseInputs(T,A):
 
     assert isinstance(T, tf.Tensor)
     assert isinstance(A, tf.Tensor)
-    checkSizesTandA(T,A)
+    if do_parse_checks:
+        checkSizesTandA(T,A)
 
     # See geck 342320. If either A or T has a minimum value which is negative, we
     # need to shift the array so all values are positive to ensure numerically
@@ -22,23 +24,32 @@ def ParseInputs(T,A):
     A = shiftData(A)
     T = shiftData(T)
     
-    checkIfFlat(T);
+    if do_parse_checks:
+        checkIfFlat(T);
+        
     return (T,A)
+#%% get eager tensor shape
+@tf.function
+def get_tensor_shape(x):
+    # print(f"in fun: tf.shape(x)={tf.shape(x)}")
+    return tf.shape(x)
 
 #%% function checkSizesTandA(T,A)
 
 def checkSizesTandA(T,A):
-    if tf.math.reduce_prod(T.shape)<2:
-        raise AssertionError('Invalid template as size < 2')
+    # if tf.math.reduce_prod(T.get_shape(),keepdims=True)<2:
+    if tf.math.less(tf.math.reduce_prod(T.get_shape()),2):
+        # print(f"T shape={T.get_shape()}:{tf.math.less(tf.math.reduce_prod(T.get_shape()),2)}")
+        raise AssertionError('Invalid template as # of elements < 2')
         
     if T.shape.as_list() > A.shape.as_list():
-        raise AssertionError('Template must not be larger than the image in both dimensions')
+        raise AssertionError('Template must not be larger than the image in either dimension')
 
 #%% function checkIfFlat(T)
 def checkIfFlat(T):
     # Note tf.math.reduce_std has a ddof = 1 (instead of 0 as in np.std)
     # here, it does not matter
-    if tf.math.reduce_std(tf.cast(T, dtype=tf.float64))==0: 
+    if tf.math.reduce_std(tf.cast(T, dtype=tf.float64))==0:
         raise AssertionError('All elements in the template must not be the same')
 
 #%% function B = shiftData(A)
@@ -49,8 +60,14 @@ def shiftData(A):
     if not is_unsigned:
         min_B = tf.reduce_min(B)
         
-        if min_B < 0:
-            B = B - min_B
+        # commenting the following snippet because python bool -> cannot save  
+        # if min_B < 0:
+        #     B = B - min_B
+            
+        pred= min_B < 0
+        true_fn= lambda: B - min_B
+        false_fn= lambda: B 
+        B= tf.cond(pred, true_fn, false_fn)
     return B
 
 #%% Function  time_conv2
@@ -92,10 +109,10 @@ def time_fft2(outsize):
 
 #%% equivalent to np.rot90()
 def my_tf_rot90(A,count):
-    if A.ndim==2:
+    if tf.shape(A).shape==2:
         for rot_num in range(count):
             A = tf.squeeze(tf.image.rot90(A[:,:,tf.newaxis]))
-    elif A.ndim > 2:
+    elif tf.shape(A).shape > 2:        
         assert False, 'not yet implemented'
         for rot_num in range(count):
             A = tf.image.rot90(A)
@@ -111,13 +128,13 @@ def freqxcorr(a,b,outsize):
     # calculate correlation in frequency domain
     a_rotx2= my_tf_rot90(a,2)
     # becasue tf.signal.fft2d does not take nfft (outsize here) as an input, have to zero-pad before hand 
-    a_ypad= [tf.constant(0), (outsize - a.shape)[0]]
-    a_xpad= [tf.constant(0), (outsize - a.shape)[1]]
+    a_ypad= [tf.constant(0), (outsize - tf.shape(a))[0]]
+    a_xpad= [tf.constant(0), (outsize - tf.shape(a))[1]]
     a_rotx2_padded= tf.pad(a_rotx2, [a_ypad,a_xpad])
     Fa = tf.signal.fft2d(tf.cast(a_rotx2_padded, tf.complex128))
     
-    b_ypad= [tf.constant(0), (outsize - b.shape)[0]]
-    b_xpad= [tf.constant(0), (outsize - b.shape)[1]]
+    b_ypad= [tf.constant(0), (outsize - tf.shape(b))[0]]
+    b_xpad= [tf.constant(0), (outsize - tf.shape(b))[1]]
     b_padded= tf.pad(b, [b_ypad,b_xpad]) # note: b is not rotated 
     Fb = tf.signal.fft2d(tf.cast(b_padded, tf.complex128))
     xcorr_ab = tf.signal.ifft2d(Fa * Fb)
@@ -126,8 +143,8 @@ def freqxcorr(a,b,outsize):
 
 #%% Function  xcorr2_fast
 def xcorr2_fast(T, A):
-    T_size = T.shape
-    A_size = A.shape
+    T_size = tf.shape(T)
+    A_size = tf.shape(A)
     outsize = tf.math.add(T_size, A_size) - 1
     
     # always do freqxcorr
@@ -157,12 +174,20 @@ def xcorr2_fast(T, A):
 def local_sum(A,m,n):
     B = tf.pad(A,((m,m,),(n,n,)))
     s = tf.math.cumsum(B,0)
-    c = s[m:-1,:] - s[0:-m-1,:]
+    # c = s[m:-1,:] - s[0:-m-1,:]
+    c = tf.slice(s, (m,0), (tf.shape(s)[0]-m-1,tf.shape(s)[1])) \
+        - tf.slice(s, (0,0), (tf.shape(s)[0]-m-1,tf.shape(s)[1]))
     s = tf.math.cumsum(c,axis=1)
     local_sum_A = s[:,n:-1]-s[:,0:-n-1]
     return local_sum_A 
 
 #%% NORMXCORR2 Normalized two-dimensional cross-correlation.
+def C_true_fun(C,zero_update_logical):
+    zero_update_index= tf.where(zero_update_logical)
+    zero_update_values= tf.zeros(tf.shape(zero_update_index)[0], dtype=C.dtype)
+    C= tf.tensor_scatter_nd_update(C, zero_update_index, zero_update_values)
+    return C
+
 def normxcorr2(template, image):
     """
     Input arrays should be floating point numbers.
@@ -181,16 +206,23 @@ def normxcorr2(template, image):
     [T, A] = ParseInputs(template, image)
     xcorr_TA = xcorr2_fast(T,A)
     
-    (m, n) = T.shape
+    # print(f"tf.shape(T) = {tf.shape(T)}: {T.dtype}")
+    # m,n = tf.shape(T)    
+    # mn_shape= tf.map_fn(get_tensor_shape, tf.cast(T, dtype=tf.int32))
+    m,n= T.get_shape()
+    # print(f"shape={tf.shape(mn_shape)},mn_shape={mn_shape}")
+    # m= mn_shape[0]
+    # n= mn_shape[1]
     mn = m*n
     
     local_sum_A = local_sum(A,m,n)
     local_sum_A2 = local_sum(A*A,m,n)
-    
+    mn = tf.cast(mn,dtype=local_sum_A.dtype)
+
     # Note: diff_local_sums should be nonnegative, but may have negative
     # values due to round off errors. Below, we use max to ensure the
     # radicand is nonnegative.
-    diff_local_sums= ( local_sum_A2 - (local_sum_A**2)/mn)    
+    diff_local_sums= ( local_sum_A2 - (local_sum_A**2)/mn)
     
     denom_A= tf.clip_by_value(diff_local_sums, clip_value_min=0,clip_value_max=np.inf)
     denom_A= tf.math.sqrt(denom_A)
@@ -205,7 +237,7 @@ def normxcorr2(template, image):
     # We know denom_T~=0 from input parsing
     # so denom is only zero where denom_A is zero, and in 
     # these locations, C is also zero.
-    C = tf.zeros(numerator.shape, dtype=xcorr_TA.dtype)
+    C = tf.zeros(tf.shape(numerator), dtype=xcorr_TA.dtype)
     tol = tf.constant(6e-8, dtype=tf.float64)
     i_nonzero = tf.math.greater(denom, tol)
 
@@ -223,18 +255,22 @@ def normxcorr2(template, image):
     # these cases, set C to zero to reflect undefined 0/0 condition.
     np_spacing1= tf.constant(2.220446049250313e-16, dtype=tf.float64) # = np.spacing(1), what matlab uses
     zero_update_logical= tf.cast((tf.math.abs(C) - 1), dtype=tf.float64) > tf.math.sqrt(np_spacing1)
-    if tf.math.reduce_any(zero_update_logical):
-        zero_update_index= tf.where(zero_update_logical)
-        zero_update_values= tf.zeros(zero_update_index.shape[0], dtype=tf.float64)
-        C= tf.tensor_scatter_nd_update(C, zero_update_index, zero_update_values)
+
+    # Commenting because got error: Using a symbolic `tf.Tensor` as a Python `bool` is not allowed
+    # if tf.math.reduce_any(zero_update_logical):
+    #     zero_update_index= tf.where(zero_update_logical)
+    #     zero_update_values= tf.zeros(tf.shape(zero_update_index)[0], dtype=C.dtype)
+    #     C= tf.tensor_scatter_nd_update(C, zero_update_index, zero_update_values)
     
-    C = tf.math.real(C)
+    pred= tf.math.reduce_any(zero_update_logical)
+    C= tf.cond(pred, lambda: C_true_fun(C,zero_update_logical), lambda: C)
+    C = tf.math.real(C)    
     return C
     
 #%%  Verified 
 def normxcorr2max_batch(template, batch_image):
-    print(f"batch_image.shape={batch_image.shape}")
-    assert len(batch_image.shape)==3 , "input should have 3 dims (batch,cf,time)"
+    # print(f"tf.shape(batch_image)={tf.shape(batch_image)}")
+    assert tf.shape(batch_image).shape==3 , "input should have 3 dims (batch,cf,time)"
     
     max_ccf = []
     for image in batch_image:
@@ -251,10 +287,11 @@ def normxcorr2max_batch(template, batch_image):
 def normxcorr2max(template, image):
     ccf_out= normxcorr2(template, image)
     begin_slice= [template.shape[0]-1, template.shape[1]-1]
-    size_slice= [image.shape[0] - (template.shape[0]-1), image.shape[1] - (template.shape[1]-1)]
+    size_slice= [tf.shape(image)[0] - (tf.shape(template)[0]-1), \
+                 tf.shape(image)[1] - (tf.shape(template)[1]-1)]
     ccf_out= tf.slice(ccf_out, begin=begin_slice, size=size_slice)
     max_ccf = tf.reduce_max(ccf_out)
-    return max_ccf,ccf_out
+    return max_ccf
 
 #%% np_spacing
 def np_spacing(x):
@@ -321,14 +358,15 @@ if do_verify :
     i_nonzero = tf.math.greater(denom, tol)
     
     ratio_update_index= tf.where(i_nonzero)
-    ratio_update_values= numerator[i_nonzero] / denom[i_nonzero]
-    C= tf.tensor_scatter_nd_update(C, ratio_update_index, ratio_update_values)
+    ratio_update_values= tf.cast(numerator[i_nonzero] / denom[i_nonzero], dtype=C.dtype)
+    # print(f"dtypes:{ratio_update_values.dtype}-vs-{C.dtype}")
+    C= tf.tensor_scatter_nd_update(C, ratio_update_index, tf.cast(ratio_update_values, dtype=C.dtype))
     
     np_spacing1= tf.constant(2.220446049250313e-16, dtype=tf.float64) # = np.spacing(1)
     zero_update_logical= ( tf.math.abs(C) - 1 ) > tf.math.sqrt(np_spacing1)
     if tf.math.reduce_any(zero_update_logical):
         zero_update_index= tf.where(zero_update_logical)
-        zero_update_values= tf.zeros(zero_update_index.shape[0], dtype=tf.float64)
+        zero_update_values= tf.zeros(zero_update_index.shape[0], dtype=C.dtype)
         C= tf.tensor_scatter_nd_update(C, zero_update_index, zero_update_values)
     
     C = tf.math.real(C)
